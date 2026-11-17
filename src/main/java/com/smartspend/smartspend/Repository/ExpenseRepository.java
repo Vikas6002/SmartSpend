@@ -12,5 +12,5 @@ public interface ExpenseRepository extends JpaRepository<Expense,Long> {
     Double getTotalExpenses();
     List<Expense> findByCategoryIgnoreCase(String category);
     List<Expense> findByDateBetween(LocalDate startDate,LocalDate endDate);
-
+    List<Expense> findByAmountGreaterThan(int amt);
 }

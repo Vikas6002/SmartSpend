@@ -2,6 +2,9 @@ package com.smartspend.smartspend.Service;
 
 import com.smartspend.smartspend.Repository.ExpenseRepository;
 import com.smartspend.smartspend.entity.Expense;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
@@ -74,5 +77,20 @@ public class ExpenseService {
         Sort.Direction sortDirection= Sort.Direction.fromString(direction);
         Sort sort=Sort.by(sortDirection,sortBy);
         return expenseRepository.findAll(sort);
+    }
+
+    public Page<Expense> getExpensesWithPagination(int page, int size, String sortBy, String direction){
+        Sort.Direction sortDirection=Sort.Direction.fromString(direction);
+        Pageable pageable= PageRequest.of(
+                page,
+                size,
+                Sort.by(sortDirection,sortBy)
+        );
+        return expenseRepository.findAll(pageable);
+
+    }
+
+    public List<Expense> getExpenseAboveAmount(int amount){
+        return expenseRepository.findByAmountGreaterThan(amount);
     }
 }

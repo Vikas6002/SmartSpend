@@ -2,6 +2,7 @@ package com.smartspend.smartspend.controller;
 
 import com.smartspend.smartspend.Service.ExpenseService;
 import com.smartspend.smartspend.entity.Expense;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -74,5 +75,23 @@ public class ExpenseController {
             @RequestParam(defaultValue = "desc") String direction) {
 
         return expenseService.getSortedExpenses(sortBy, direction);
+    }
+
+    @GetMapping("/page")
+    public Page<Expense> getExpensesWithPagination(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(defaultValue = "date") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction) {
+
+        return expenseService.getExpensesWithPagination(
+                page, size, sortBy, direction
+        );
+    }
+
+    @GetMapping("/above")
+    public List<Expense> getExpensesAboveAmount(@RequestParam(defaultValue = "0") int amount){
+        return expenseService.getExpenseAboveAmount(amount);
+
     }
 }
