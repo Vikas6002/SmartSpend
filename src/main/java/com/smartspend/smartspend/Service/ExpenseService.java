@@ -29,22 +29,47 @@ public class ExpenseService {
         Expense savedExpense = expenseRepository.save(expense);
 
         return toResponseDTO(savedExpense);
-    }    public List<Expense> getAllExpenses(){
-
-        return expenseRepository.findAll();
     }
 
-    public Expense getExpenseById(Long id){
+    public ExpenseResponseDTO updateExpense(
+            Long id,
+            ExpenseRequestDTO dto) {
 
-        return expenseRepository.findById(id)
+        Expense expense = expenseRepository.findById(id)
+                .orElseThrow(() ->
+                        new ExpenseNotFoundException(
+                                "Expense not found with ID: " + id
+                        )
+                );
+
+        expense.setAmount(dto.amount());
+        expense.setCategory(dto.category());
+        expense.setDescription(dto.description());
+        expense.setDate(dto.date());
+
+        Expense updatedExpense = expenseRepository.save(expense);
+
+        return toResponseDTO(updatedExpense);
+    }
+    public ExpenseResponseDTO getExpenseById(Long id){
+
+        Expense expense= expenseRepository.findById(id)
                 .orElseThrow(()->
                         new ExpenseNotFoundException("Expense not found with ID : " + id));
+        return toResponseDTO(expense);
     }
 
     public double getTotalExpenses()
     {
         return expenseRepository.getTotalExpenses();  }
 
+    public List<ExpenseResponseDTO> getAllExpenses() {
+
+        return expenseRepository.findAll()
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
+    }
     public Expense updateExpense(Long id,Expense updatedExpense)
     {
         Expense existingExpense = expenseRepository.findById(id).orElse(null);
@@ -58,20 +83,27 @@ public class ExpenseService {
         return expenseRepository.save(existingExpense);
     }
 
-    public boolean deleteExpense(Long id)
-    {
-        if (!expenseRepository.existsById(id)) {
-            return false;
-        }
-        expenseRepository.deleteById(id);
-        return true;
-    }
-    public List<Expense> getExpensesByCategory(String category) {
 
-        return expenseRepository.findByCategoryIgnoreCase(category);
+    public List<ExpenseResponseDTO> getExpensesByCategory(String category) {
+
+        return expenseRepository.findByCategoryIgnoreCase(category)
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
 
     }
 
+    public void deleteExpense(Long id) {
+
+        Expense expense = expenseRepository.findById(id)
+                .orElseThrow(() ->
+                        new ExpenseNotFoundException(
+                                "Expense not found with ID: " + id
+                        )
+                );
+
+        expenseRepository.delete(expense);
+    }
     public List<Expense> getExpensesByDateRange(
             LocalDate startDate,
             LocalDate endDate) {
@@ -81,12 +113,6 @@ public class ExpenseService {
         );
     }
 
-    public List<Expense> getSortedExpenses(String sortBy,String direction)
-    {
-        Sort.Direction sortDirection= Sort.Direction.fromString(direction);
-        Sort sort=Sort.by(sortDirection,sortBy);
-        return expenseRepository.findAll(sort);
-    }
 
     public Page<Expense> getExpensesWithPagination(int page, int size, String sortBy, String direction){
         Sort.Direction sortDirection=Sort.Direction.fromString(direction);
@@ -123,6 +149,28 @@ public class ExpenseService {
                 expense.getCategory(),
                 expense.getDescription(),
                 expense.getDate()
-        );
+        );}
+        public List<ExpenseResponseDTO> getSortedExpenses(
+                String sortBy,
+                String direction) {
+
+            Sort.Direction sortDirection =
+                    Sort.Direction.fromString(direction);
+
+            Sort sort = Sort.by(sortDirection, sortBy);
+
+            return expenseRepository.findAll(sort)
+                    .stream()
+                    .map(this::toResponseDTO)
+                    .toList();
+        }
+    public Page<ExpenseResponseDTO> getPaginatedExpenses(
+            int page,
+            int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        return expenseRepository.findAll(pageable)
+                .map(this::toResponseDTO);
     }
 }
