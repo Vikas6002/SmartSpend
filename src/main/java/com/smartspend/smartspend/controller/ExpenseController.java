@@ -2,6 +2,7 @@ package com.smartspend.smartspend.controller;
 
 import com.smartspend.smartspend.Service.ExpenseService;
 import com.smartspend.smartspend.entity.Expense;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,7 +20,7 @@ public class ExpenseController {
     }
 //CREATE
     @PostMapping
-    public Expense abbExpense(@RequestBody Expense expense)
+    public Expense abbExpense(@Valid @RequestBody Expense expense)
     {
         return expenseService.addExpense(expense);
     }
