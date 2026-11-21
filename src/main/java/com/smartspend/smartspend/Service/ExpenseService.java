@@ -2,6 +2,7 @@ package com.smartspend.smartspend.Service;
 
 import com.smartspend.smartspend.Repository.ExpenseRepository;
 import com.smartspend.smartspend.entity.Expense;
+import com.smartspend.smartspend.exception.ExpenseNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,7 +30,10 @@ public class ExpenseService {
     }
 
     public Expense getExpenseById(Long id){
-        return expenseRepository.getReferenceById(id);
+
+        return expenseRepository.findById(id)
+                .orElseThrow(()->
+                        new ExpenseNotFoundException("Expense not found with ID : " + id));
     }
 
     public double getTotalExpenses()
