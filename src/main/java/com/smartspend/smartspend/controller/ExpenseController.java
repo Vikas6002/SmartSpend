@@ -10,6 +10,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(
+        name = "Expense Management",
+        description = "APIs for managing expenses"
+)
 
 @RestController
 @RequestMapping("/api/expenses")
@@ -61,6 +68,10 @@ public class ExpenseController {
 
     }
     // CREATE
+    @Operation(
+            summary = "Create a new expense",
+            description = "Adds an expense to the database"
+    )
     @PostMapping
     public ResponseEntity<ExpenseResponseDTO> addExpense(
             @Valid @RequestBody ExpenseRequestDTO dto) {
@@ -72,6 +83,11 @@ public class ExpenseController {
 
 
     // READ ALL
+    @Operation(
+            summary = "Get expense by ID",
+            description = "Returns an expense using its unique ID"
+    )
+
     @GetMapping
     public ResponseEntity<List<ExpenseResponseDTO>> getAllExpenses() {
 
