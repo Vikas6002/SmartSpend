@@ -1,5 +1,7 @@
 package com.smartspend.smartspend.Service;
-
+import com.smartspend.smartspend.dto.ExpenseRequestDTO;
+import com.smartspend.smartspend.dto.ExpenseResponseDTO;
+import com.smartspend.smartspend.entity.Expense;
 import com.smartspend.smartspend.Repository.ExpenseRepository;
 import com.smartspend.smartspend.entity.Expense;
 import com.smartspend.smartspend.exception.ExpenseNotFoundException;
@@ -20,11 +22,14 @@ public class ExpenseService {
         this.expenseRepository=expenseRepository;
     }
 
-    public Expense addExpense(Expense expense)
-    {
-        return expenseRepository.save(expense);
-    }
-    public List<Expense> getAllExpenses(){
+    public ExpenseResponseDTO addExpense(ExpenseRequestDTO dto) {
+
+        Expense expense = toEntity(dto);
+
+        Expense savedExpense = expenseRepository.save(expense);
+
+        return toResponseDTO(savedExpense);
+    }    public List<Expense> getAllExpenses(){
 
         return expenseRepository.findAll();
     }
@@ -96,5 +101,28 @@ public class ExpenseService {
 
     public List<Expense> getExpenseAboveAmount(int amount){
         return expenseRepository.findByAmountGreaterThan(amount);
+    }
+
+    private Expense toEntity(ExpenseRequestDTO dto) {
+
+        Expense expense = new Expense();
+
+        expense.setAmount(dto.amount());
+        expense.setCategory(dto.category());
+        expense.setDescription(dto.description());
+        expense.setDate(dto.date());
+
+        return expense;
+    }
+
+    private ExpenseResponseDTO toResponseDTO(Expense expense) {
+
+        return new ExpenseResponseDTO(
+                expense.getId(),
+                expense.getAmount(),
+                expense.getCategory(),
+                expense.getDescription(),
+                expense.getDate()
+        );
     }
 }

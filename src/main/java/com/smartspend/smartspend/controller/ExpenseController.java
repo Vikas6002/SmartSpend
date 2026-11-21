@@ -1,5 +1,6 @@
 package com.smartspend.smartspend.controller;
-
+import com.smartspend.smartspend.dto.ExpenseRequestDTO;
+import com.smartspend.smartspend.dto.ExpenseResponseDTO;
 import com.smartspend.smartspend.Service.ExpenseService;
 import com.smartspend.smartspend.entity.Expense;
 import jakarta.validation.Valid;
@@ -20,9 +21,9 @@ public class ExpenseController {
     }
 //CREATE
     @PostMapping
-    public Expense abbExpense(@Valid @RequestBody Expense expense)
+    public ExpenseResponseDTO abbExpense(@Valid @RequestBody ExpenseRequestDTO dto)
     {
-        return expenseService.addExpense(expense);
+        return expenseService.addExpense(dto);
     }
 
     //ReadALl
