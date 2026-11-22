@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+    <title>SmartSpend</title>
+
+    <!-- Tabler CSS -->
+    <link
+            href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css"
+            rel="stylesheet">
+</head>
+
+<body>
+
+<div class="page">
+
+    <!-- Sidebar -->
+    <aside class="navbar navbar-vertical navbar-expand-lg"
+           data-bs-theme="dark">
+
+        <div class="container-fluid">
+
+            <h1 class="navbar-brand text-white">
+                SmartSpend
+            </h1>
+
+            <div class="collapse navbar-collapse">
+
+                <ul class="navbar-nav pt-lg-3">
+
+                    <li class="nav-item">
+
+                        <a class="nav-link active" href="#">
+
+                            <span class="nav-link-title">
+                                Dashboard
+                            </span>
+
+                        </a>
+
+                    </li>
+
+                    <li class="nav-item">
+
+                        <a class="nav-link" href="#">
+
+                            <span class="nav-link-title">
+                                Expenses
+                            </span>
+
+                        </a>
+
+                    </li>
+
+                    <li class="nav-item">
+
+                        <a class="nav-link" href="#">
+
+                            <span class="nav-link-title">
+                                Analytics
+                            </span>
+
+                        </a>
+
+                    </li>
+
+                    <li class="nav-item">
+
+                        <a class="nav-link" href="#">
+
+                            <span class="nav-link-title">
+                                AI Insights
+                            </span>
+
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- Main Page -->
+    <div class="page-wrapper">
+
+        <div class="page-header">
+
+            <div class="container-xl">
+
+                <div class="row align-items-center">
+
+                    <div class="col">
+
+                        <h2 class="page-title">
+                            SmartSpend Dashboard
+                        </h2>
+
+                        <div class="text-secondary mt-1">
+                            Track and understand your expenses
+                        </div>
+
+                    </div>
+
+                    <div class="col-auto">
+
+                        <button class="btn btn-primary">
+                            + Add Expense
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="page-body">
+
+            <div class="container-xl">
+
+                <div class="row row-deck row-cards">
+
+                    <!-- Total Spending -->
+
+                    <div class="col-sm-6 col-lg-3">
+
+                        <div class="card">
+
+                            <div class="card-body">
+
+                                <div class="subheader">
+                                    Total Spending
+                                </div>
+
+                                <div class="h1 mb-0">
+                                    ₹0
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Expenses -->
+
+                    <div class="col-sm-6 col-lg-3">
+
+                        <div class="card">
+
+                            <div class="card-body">
+
+                                <div class="subheader">
+                                    Expenses
+                                </div>
+
+                                <div class="h1 mb-0">
+                                    0
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Average -->
+
+                    <div class="col-sm-6 col-lg-3">
+
+                        <div class="card">
+
+                            <div class="card-body">
+
+                                <div class="subheader">
+                                    Average Expense
+                                </div>
+
+                                <div class="h1 mb-0">
+                                    ₹0
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Highest -->
+
+                    <div class="col-sm-6 col-lg-3">
+
+                        <div class="card">
+
+                            <div class="card-body">
+
+                                <div class="subheader">
+                                    Highest Expense
+                                </div>
+
+                                <div class="h1 mb-0">
+                                    ₹0
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Recent Expenses -->
+
+                <div class="card mt-4">
+
+                    <div class="card-header">
+
+                        <h3 class="card-title">
+                            Recent Expenses
+                        </h3>
+
+                    </div>
+
+                    <div class="table-responsive">
+
+                        <table class="table table-vcenter card-table">
+
+                            <thead>
+
+                            <tr>
+                                <th>Date</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Actions</th>
+                            </tr>
+
+                            </thead>
+
+                            <tbody>
+
+                            <tr>
+
+                                <td colspan="5"
+                                    class="text-center text-secondary">
+
+                                    No expenses available
+
+                                </td>
+
+                            </tr>
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Tabler JS -->
+
+<script
+        src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js">
+</script>
+
+</body>
+
+</html>
