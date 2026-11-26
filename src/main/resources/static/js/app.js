@@ -1,95 +1,108 @@
-document.addEventListener("DOMContentLoaded", () => {
-    loadExpenses();
-});
-
-async function loadExpenses() {
-
-    const tableBody = document.getElementById("expenseTableBody");
-
-    try {
-
-        const response = await fetch("/api/expenses");
-
-        if (!response.ok) {
-            throw new Error("Failed to fetch expenses");
-        }
-
-        const expenses = await response.json();
-
-        tableBody.innerHTML = "";
-
-        if (expenses.length === 0) {
-
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="5"
-                        class="text-center text-secondary">
-                        No expenses available
-                    </td>
-                </tr>
-            `;
-
-            return;
-        }
-
-        expenses.forEach(expense => {
-
-            const row = `
-                <tr>
-
-                    <td>
-                        ${expense.date}
-                    </td>
-
-                    <td>
-                        ${expense.category}
-                    </td>
-
-                    <td>
-                        ${expense.description}
-                    </td>
-
-                    <td>
-                        ₹${Number(expense.amount).toLocaleString("en-IN")}
-                    </td>
-
-                    <td>
-
-                        <button
-                            class="btn btn-sm btn-warning">
-                            Edit
-                        </button>
-
-                        <button
-                            class="btn btn-sm btn-danger">
-                            Delete
-                        </button>
-
-                    </td>
-
-                </tr>
-            `;
-
-            tableBody.innerHTML += row;
-
-        });
-
-    }
-    catch (error) {
-
-        console.error(error);
-
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="5"
-                    class="text-center text-danger">
-
-                    Failed to load expenses
-
-                </td>
-            </tr>
-        `;
-
-    }
-
+'use strict';
+// SmartSpend: plain JavaScript frontend for the existing Spring Boot REST API.
+const API = '/api/expenses';
+const $ = id => document.getElementById(id);
+const CATEGORIES = ['Food','Travel','Shopping','Bills','Entertainment','Health','Education','Groceries','Rent','Other'];
+const COLORS = ['#206bc4','#0d9488','#8b5cf6','#e58a24','#e15b78','#5496a8','#7eae48','#db7272','#6478d5','#9b8b71'];
+const rupees = new Intl.NumberFormat('en-IN', {style:'currency',currency:'INR',maximumFractionDigits:2});
+const money = value => rupees.format(Number(value) || 0);
+const compact = value => '₹' + new Intl.NumberFormat('en-IN',{notation:'compact',maximumFractionDigits:1}).format(value);
+const state = {expenses:[],loaded:false,loading:false,page:1,editing:null,deleting:null,writing:false,budget:0};
+const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`; // only called with hard-coded names
+const node = (tag,cls,text) => {const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
+const total = rows => rows.reduce((sum,e)=>sum+e.amount,0);
+const getStored = key => {try{return localStorage.getItem(key);}catch{return null;}};
+const store = (key,value) => {try{localStorage.setItem(key,value);return true;}catch{return false;}};
+function localDate(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function monthKey(offset=0){const d=new Date();return localDate(new Date(d.getFullYear(),d.getMonth()+offset,1)).slice(0,7);}
+const monthRows = (offset=0) => state.expenses.filter(e=>e.date.startsWith(monthKey(offset)));
+const formatDate = value => {const d=new Date(value+'T00:00:00');return Number.isNaN(d.getTime())?value:d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});};
+const newest = (a,b)=>b.date.localeCompare(a.date)||String(b.id).localeCompare(String(a.id),undefined,{numeric:true});
+function normalize(row){const amount=Number(row.amount);if(row.id==null||!Number.isFinite(amount)||amount<0||typeof row.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(row.date.slice(0,10)))throw new Error('Unexpected expense response. Check the DTO fields.');return {id:String(row.id),amount,category:String(row.category||'Other'),description:String(row.description||''),date:row.date.slice(0,10)};}
+async function request(path='',options={}){
+    const response=await fetch(API+path,{...options,headers:{Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...options.headers}});
+    const text=await response.text();let body=null;
+    if(text){try{body=JSON.parse(text);}catch{body=text;}}
+    if(!response.ok){let detail=typeof body==='string'?body:body?.message||body?.detail||body?.error;
+        if(body&&typeof body==='object'&&!detail){const values=Object.values(body).filter(v=>typeof v==='string');detail=values.join('; ');}
+        throw new Error(`HTTP ${response.status}${detail?' — '+String(detail).slice(0,300):''}`);
+    }return body;
 }
+function toast(message,type='success'){
+    const el=node('div','notice'+(type==='error'?' error':''));el.innerHTML=icon(type==='error'?'alert':'check');el.append(node('span','',message));
+    const close=node('button','btn btn-sm btn-icon');close.type='button';close.setAttribute('aria-label','Dismiss notification');close.innerHTML=icon('close');close.onclick=()=>el.remove();el.append(close);$('toasts').append(el);setTimeout(()=>el.remove(),6500);
+}
+function status(kind,message=''){
+    const conn=$('connection');conn.replaceChildren();conn.append(node('span','loading-dot '+(kind==='error'?'off':kind==='loading'?'wait':'')),document.createTextNode(kind==='error'?'Connection issue':kind==='loading'?'Syncing…':'Connected'));
+    $('statusBox').hidden=kind==='ok';$('statusBox').className='status '+kind;$('statusText').textContent=message;$('retryBtn').hidden=kind!=='error';
+}
+async function loadExpenses({notify=false}={}){
+    if(state.loading)return false;state.loading=true;$('refreshBtn').disabled=true;status('loading','Loading expenses from Spring Boot…');
+    try{
+        const result=await request();
+        // GET /api/expenses is normally an array. Also accept a Spring Page response,
+        // fetching remaining pages through the known /page endpoint if needed.
+        let rows;
+        if(Array.isArray(result))rows=result;
+        else if(Array.isArray(result?.content)){
+            rows=[...result.content];const pages=Number(result.totalPages)||1;
+            for(let p=1;p<pages;p++){
+                const next=await request(`/page?page=${p}&size=${Number(result.size)||10}`);
+                if(!Array.isArray(next?.content))throw new Error('Invalid pagination response.');rows.push(...next.content);
+            }
+        }else throw new Error('Expected an expense array or Spring Page.');
+        state.expenses=rows.map(normalize);state.loaded=true;status('ok');renderAll();if(notify)toast('Expenses refreshed.');return true;
+    }catch(error){console.error(error);status('error',`${state.loaded?'Showing last loaded data. ':'Could not load expenses. '}${error.message}`);if(!state.loaded){empty($('recentRows'),5,'Unable to load expenses.');empty($('expenseTableBody'),5,'Unable to load expenses.');}return false;
+    }finally{state.loading=false;$('refreshBtn').disabled=false;}
+}
+function setView(view){if(!['dashboard','expenses','analytics','insights'].includes(view))view='dashboard';for(const el of document.querySelectorAll('.view'))el.hidden=el.id!==`view-${view}`;for(const link of document.querySelectorAll('[data-view]')){const active=link.dataset.view===view;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}$('topTitle').textContent={dashboard:'Overview',expenses:'Expenses',analytics:'Analytics',insights:'Smart insights'}[view];closeSidebar();window.scrollTo(0,0);}
+function closeSidebar(){$('sidebar').classList.remove('open');$('overlay').classList.remove('open');$('menuBtn').setAttribute('aria-expanded','false');}
+function setTheme(theme){document.documentElement.dataset.bsTheme=theme;$('themeIcon').setAttribute('href',theme==='dark'?'#i-sun':'#i-moon');$('themeBtn').setAttribute('aria-label',theme==='dark'?'Switch to light mode':'Switch to dark mode');}
+function categoryColor(name){let hash=0;for(const char of name)hash=(hash*31+char.charCodeAt(0))>>>0;return COLORS[hash%COLORS.length];}
+function badge(name){const el=node('span','cat-badge');const dot=node('span','swatch');dot.style.background=categoryColor(name);el.append(dot,document.createTextNode(name));return el;}
+function empty(tbody,cols,message){const tr=node('tr');const td=node('td','empty');td.colSpan=cols;td.textContent=message;tr.append(td);tbody.replaceChildren(tr);}
+function actionButton(name,label,id){const btn=node('button','btn btn-sm btn-icon');btn.type='button';btn.title=label;btn.setAttribute('aria-label',label);btn.dataset.action=name;btn.dataset.id=id;btn.innerHTML=icon(name==='edit'?'edit':'trash');return btn;}
+function renderRows(tbody,rows,message='No expenses found.'){if(!rows.length){empty(tbody,5,message);return;}const frag=document.createDocumentFragment();for(const e of rows){const tr=node('tr');const date=node('td','',formatDate(e.date));const category=node('td');category.append(badge(e.category));const desc=node('td','description-cell',e.description||'—');const amount=node('td','amount-cell mono',money(e.amount));const actions=node('td');const group=node('div','row-actions');group.append(actionButton('edit','Edit expense',e.id),actionButton('delete','Delete expense',e.id));actions.append(group);tr.append(date,category,desc,amount,actions);frag.append(tr);}tbody.replaceChildren(frag);}
+function renderCategories(){const names=[...new Set([...CATEGORIES,...state.expenses.map(e=>e.category)])].sort((a,b)=>a.localeCompare(b));const selected=$('categoryFilter').value;$('categoryFilter').replaceChildren(new Option('All categories',''));$('categoryOptions').replaceChildren();for(const name of names){$('categoryFilter').append(new Option(name,name));const option=node('option');option.value=name;$('categoryOptions').append(option);}$('categoryFilter').value=names.includes(selected)?selected:'';}
+function filteredRows(){const q=$('searchInput').value.trim().toLowerCase(),category=$('categoryFilter').value,start=$('startDate').value,end=$('endDate').value;const invalid=Boolean(start&&end&&start>end);$('filterError').hidden=!invalid;$('filterError').textContent=invalid?'Start date must be on or before end date.':'';if(invalid)return [];
+    const rows=state.expenses.filter(e=>(!category||e.category===category)&&(!start||e.date>=start)&&(!end||e.date<=end)&&(!q||`${e.description} ${e.category} ${e.amount} ${e.date}`.toLowerCase().includes(q)));
+    const sort=$('sortBy').value;return rows.sort((a,b)=>sort==='date-asc'?-newest(a,b):sort==='amount-desc'?b.amount-a.amount||newest(a,b):sort==='amount-asc'?a.amount-b.amount||newest(a,b):sort==='category-asc'?a.category.localeCompare(b.category)||newest(a,b):newest(a,b));}
+function renderExpenses(){const rows=filteredRows(),size=Number($('pageSize').value)||10,pages=Math.max(1,Math.ceil(rows.length/size));state.page=Math.max(1,Math.min(state.page,pages));const from=(state.page-1)*size;renderRows($('expenseTableBody'),rows.slice(from,from+size),state.loaded?'No expenses match your filters.':'Expenses not loaded.');$('filteredTotal').textContent=`${rows.length} matching · ${money(total(rows))}`;$('pageInfo').textContent=rows.length?`Showing ${from+1}–${Math.min(from+size,rows.length)} of ${rows.length}`:'Showing 0 expenses';$('pageNumber').textContent=`${state.page} / ${pages}`;$('prevBtn').disabled=state.page<=1;$('nextBtn').disabled=state.page>=pages;$('exportBtn').disabled=!rows.length;}
+function categoryStats(rows){const map=new Map();for(const e of rows){const item=map.get(e.category)||{name:e.category,amount:0,count:0};item.amount+=e.amount;item.count++;map.set(e.category,item);}return [...map.values()].sort((a,b)=>b.amount-a.amount||a.name.localeCompare(b.name));}
+function renderBars(id){const chart=$(id),months=[];for(let i=-5;i<=0;i++){const key=monthKey(i);const date=new Date(key+'-01T00:00:00');months.push({label:date.toLocaleDateString('en-IN',{month:'short'}),full:date.toLocaleDateString('en-IN',{month:'long',year:'numeric'}),amount:total(monthRows(i))});}const max=Math.max(1,...months.map(m=>m.amount));const frag=document.createDocumentFragment();for(const m of months){const slot=node('div','bar-slot');slot.title=`${m.full}: ${money(m.amount)}`;slot.setAttribute('aria-label',slot.title);const amount=node('div','bar-amount mono',compact(m.amount));const track=node('div','bar-track');const bar=node('div','bar');bar.style.height=`${m.amount/max*100}%`;track.append(bar);slot.append(amount,track,node('div','bar-label',m.label));frag.append(slot);}chart.replaceChildren(frag);}
+function renderDonut(rows,donutId,legendId,totalId){const stats=categoryStats(rows),sum=total(rows),donut=$(donutId),legend=$(legendId);$(totalId).textContent=compact(sum);let angle=0;const segments=[];legend.replaceChildren();for(const item of stats){const pct=sum?item.amount/sum*100:0;const color=categoryColor(item.name);if(pct>0){segments.push(`${color} ${angle}% ${angle+pct}%`);angle+=pct;}const line=node('div','legend-line');const dot=node('span','swatch');dot.style.background=color;const name=node('span','legend-name',item.name);const share=node('strong','mono',`${pct.toFixed(1)}%`);line.title=money(item.amount);line.append(dot,name,share);legend.append(line);}donut.style.background=segments.length?`conic-gradient(${segments.join(',')})`:'var(--ss-border)';donut.setAttribute('aria-label',stats.length?'Category spending: '+stats.map(s=>`${s.name} ${money(s.amount)}`).join(', '):'No spending recorded');if(!stats.length)legend.append(node('span','muted small','No expenses in this period.'));}
+function renderBudget(){const spent=total(monthRows()),budget=state.budget;const pct=budget?spent/budget*100:0;$('budgetInfo').textContent=budget?`${money(spent)} of ${money(budget)} used`:'Set a target to track this month’s progress.';$('budgetProgress').style.width=`${Math.min(100,pct)}%`;$('budgetProgress').classList.toggle('over',pct>100);$('budgetTrack').setAttribute('aria-valuenow',String(Math.min(100,Math.round(pct))));$('budgetTrack').setAttribute('aria-valuetext',budget?`${pct.toFixed(1)} percent used`:'No budget set');$('budgetRemaining').textContent=!budget?'No budget set':spent>budget?`${money(spent-budget)} over budget · ${pct.toFixed(0)}% used`:`${money(budget-spent)} remaining · ${pct.toFixed(0)}% used`;$('budgetBtn').textContent=budget?'Edit budget':'Set budget';}
+function renderDashboard(){const rows=state.expenses,sum=total(rows),current=total(monthRows()),previous=total(monthRows(-1));$('totalSpent').textContent=money(sum);$('monthSpent').textContent=money(current);$('expenseCount').textContent=rows.length.toLocaleString('en-IN');$('averageSpent').textContent=money(rows.length?sum/rows.length:0);$('highestLabel').textContent='Highest expense: '+money(rows.reduce((max,e)=>Math.max(max,e.amount),0));$('monthComparison').textContent=previous?`${((current-previous)/previous*100)>0?'+':''}${((current-previous)/previous*100).toFixed(1)}% vs last full month`: 'No spending in previous month';renderRows($('recentRows'),[...rows].sort(newest).slice(0,5),'No expenses yet. Add your first expense!');renderBars('dashboardBars');renderDonut(rows,'dashboardDonut','dashboardLegend','donutTotal');renderBudget();}
+function renderAnalytics(){const period=$('analyticsPeriod').value,rows=period==='month'?monthRows():period==='last'?monthRows(-1):state.expenses;renderBars('analyticsBars');renderDonut(rows,'analyticsDonut','analyticsLegend','analyticsTotal');const stats=categoryStats(rows),sum=total(rows),tbody=$('categoryRows');if(!stats.length){empty(tbody,4,'No spending in this period.');return;}const frag=document.createDocumentFragment();for(const item of stats){const tr=node('tr'),name=node('td');name.append(badge(item.name));tr.append(name,node('td','mono',String(item.count)),node('td','mono',money(item.amount)),node('td','mono',`${sum?(item.amount/sum*100).toFixed(1):'0.0'}%`));frag.append(tr);}tbody.replaceChildren(frag);}
+function insight(title,description,symbol='spark'){const card=node('article','insight');const mark=node('span','metric-icon');mark.innerHTML=icon(symbol);const content=node('div');content.append(node('h3','',title),node('p','',description));card.append(mark,content);return card;}
+function renderInsights(){const container=$('insightCards'),rows=state.expenses,month=monthRows(),spent=total(month),prev=total(monthRows(-1)),top=categoryStats(month)[0];container.replaceChildren();if(!rows.length){container.append(insight('Start tracking','Add expenses to unlock spending observations.'));return;}container.append(insight('Top category this month',top?`${top.name} accounts for ${spent?(top.amount/spent*100).toFixed(1):0}% of this month’s spending (${money(top.amount)}). Review this category for potential savings.`:'No expenses recorded this month.','chart'));container.append(insight('Monthly comparison',prev?`This month so far: ${money(spent)}. Last full month: ${money(prev)}. These are different-length periods until this month ends.`:'No previous-month expenses to compare yet.','logo'));container.append(insight('Budget check',state.budget?spent>state.budget?`You are ${money(spent-state.budget)} over your monthly target. Review discretionary spending.`:`You have ${money(state.budget-spent)} left in your monthly budget.`:'Set a monthly budget on Overview to track progress.','wallet'));const highest=[...rows].sort((a,b)=>b.amount-a.amount)[0];container.append(insight('Largest recorded expense',`${money(highest.amount)} for ${highest.description||highest.category} on ${formatDate(highest.date)}. Check whether large purchases are planned or recurring.`,'list'));}
+function renderAll(){renderCategories();renderDashboard();renderExpenses();renderAnalytics();renderInsights();}
+function showError(id,message){$(id).textContent=message;$(id).hidden=!message;}
+function openExpense(expense=null){if(state.writing)return;state.editing=expense?.id??null;$('expenseForm').reset();showError('expenseError','');$('expenseTitle').textContent=expense?'Edit expense':'Add expense';$('saveExpenseBtn').textContent=expense?'Save changes':'Save expense';$('amount').value=expense?.amount??'';$('category').value=expense?.category??'';$('description').value=expense?.description??'';$('date').value=expense?.date??localDate();$('expenseDialog').showModal();$('amount').focus();}
+function openDelete(expense){if(state.writing)return;state.deleting=expense.id;showError('deleteError','');$('deleteDescription').textContent=`Delete ${expense.description||expense.category} (${money(expense.amount)})?`;$('deleteDialog').showModal();}
+function setBusy(dialog,busy){state.writing=busy;for(const el of dialog.querySelectorAll('button'))el.disabled=busy;}
+async function saveExpense(event){event.preventDefault();if(state.writing)return;const form=$('expenseForm');if(!form.reportValidity())return;const amount=Number($('amount').value),category=$('category').value.trim(),description=$('description').value.trim(),date=$('date').value;if(!Number.isFinite(amount)||amount<=0||!category||!description||!date){showError('expenseError','Enter a positive amount and complete all fields.');return;}
+    const id=state.editing,editing=id!==null,dialog=$('expenseDialog');setBusy(dialog,true);$('saveExpenseBtn').textContent='Saving…';showError('expenseError','');
+    try{await request(editing?'/'+encodeURIComponent(id):'',{method:editing?'PUT':'POST',body:JSON.stringify({amount,category,description,date})});}
+    catch(error){console.error(error);showError('expenseError',error.message);setBusy(dialog,false);$('saveExpenseBtn').textContent=editing?'Save changes':'Save expense';return;}
+    // The write succeeded. Never turn a refresh/modal failure into a duplicate POST.
+    dialog.close();setBusy(dialog,false);$('saveExpenseBtn').textContent=editing?'Save changes':'Save expense';toast(editing?'Expense updated.':'Expense added.');state.page=1;
+    if(state.loading){await waitForLoad();}if(!await loadExpenses())toast('Saved successfully, but refresh failed. Use Refresh to see changes.','error');
+}
+async function waitForLoad(){while(state.loading)await new Promise(resolve=>setTimeout(resolve,50));}
+async function deleteExpense(event){event.preventDefault();if(state.writing||state.deleting===null)return;const dialog=$('deleteDialog'),id=state.deleting;setBusy(dialog,true);$('confirmDeleteBtn').textContent='Deleting…';showError('deleteError','');try{await request('/'+encodeURIComponent(id),{method:'DELETE'});}catch(error){console.error(error);showError('deleteError',error.message);setBusy(dialog,false);$('confirmDeleteBtn').textContent='Delete expense';return;}
+    dialog.close();setBusy(dialog,false);$('confirmDeleteBtn').textContent='Delete expense';state.deleting=null;toast('Expense deleted.');if(state.loading)await waitForLoad();if(!await loadExpenses())toast('Deleted successfully, but refresh failed.','error');}
+function csvCell(value){let text=String(value??'');if(/^[\s]*[=+\-@\t\r\n]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}
+function exportCSV(){const rows=filteredRows();if(!rows.length)return;const lines=[['Date','Category','Description','Amount (INR)'].map(csvCell).join(','),...rows.map(e=>[e.date,e.category,e.description,e.amount.toFixed(2)].map(csvCell).join(','))];const url=URL.createObjectURL(new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'}));const a=node('a');a.href=url;a.download=`smartspend-${localDate()}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast(`Exported ${rows.length} expenses.`);}
+function init(){const theme=getStored('smartspend.theme');setTheme(theme==='dark'?'dark':'light');const budget=Number(getStored('smartspend.budget'));state.budget=Number.isFinite(budget)&&budget>0?budget:0;$('todayLabel').textContent=new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});renderCategories();setView(location.hash.slice(1));window.addEventListener('hashchange',()=>setView(location.hash.slice(1)));
+    $('menuBtn').onclick=()=>{const open=$('sidebar').classList.toggle('open');$('overlay').classList.toggle('open',open);$('menuBtn').setAttribute('aria-expanded',String(open));};$('overlay').onclick=closeSidebar;
+    $('themeBtn').onclick=()=>{const next=document.documentElement.dataset.bsTheme==='dark'?'light':'dark';setTheme(next);store('smartspend.theme',next);};$('refreshBtn').onclick=()=>loadExpenses({notify:true});$('retryBtn').onclick=()=>loadExpenses();
+    document.querySelectorAll('[data-add]').forEach(btn=>btn.addEventListener('click',()=>openExpense()));document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>{if(!state.writing)$(btn.dataset.close).close();}));for(const id of ['expenseDialog','deleteDialog'])$(id).addEventListener('cancel',event=>{if(state.writing)event.preventDefault();});
+    for(const id of ['recentRows','expenseTableBody'])$(id).addEventListener('click',event=>{const btn=event.target.closest('button[data-action]');if(!btn)return;const expense=state.expenses.find(e=>e.id===btn.dataset.id);if(!expense)return;btn.dataset.action==='edit'?openExpense(expense):openDelete(expense);});
+    $('expenseForm').addEventListener('submit',saveExpense);$('deleteForm').addEventListener('submit',deleteExpense);
+    for(const id of ['searchInput','categoryFilter','startDate','endDate','sortBy','pageSize'])$(id).addEventListener(id==='searchInput'?'input':'change',()=>{state.page=1;renderExpenses();});$('resetFilters').onclick=()=>{for(const id of ['searchInput','categoryFilter','startDate','endDate'])$(id).value='';$('sortBy').value='date-desc';state.page=1;renderExpenses();};$('prevBtn').onclick=()=>{state.page--;renderExpenses();};$('nextBtn').onclick=()=>{state.page++;renderExpenses();};$('exportBtn').onclick=exportCSV;$('analyticsPeriod').onchange=renderAnalytics;
+    $('budgetBtn').onclick=()=>{$('budgetInput').value=state.budget||'';$('budgetDialog').showModal();};$('budgetForm').addEventListener('submit',event=>{event.preventDefault();const value=Number($('budgetInput').value);if(!Number.isFinite(value)||value<0)return;state.budget=value;const persisted=store('smartspend.budget',String(value));$('budgetDialog').close();renderBudget();renderInsights();toast(persisted?'Monthly budget updated.':'Budget updated for this session only.');});
+    loadExpenses();
+}
+// Loaded using defer, so the DOM is already available.
+init();
